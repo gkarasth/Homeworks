@@ -3,7 +3,7 @@ input next,clk,reset;
 output [7:0] command;
 output  reg m_end;
 //////////
-parameter num_of_letters = 80;
+parameter num_of_letters = 53;
 reg [10:0] letter_cntr;
 //////////
 always@(posedge clk,posedge reset) begin
@@ -19,6 +19,8 @@ else if(next) begin
 letter_cntr<=letter_cntr+1;
 m_end<=0;
 end
+else
+m_end<=0;
 end
 
 

@@ -7,11 +7,12 @@ output RS,RW,Data_En;
 reg rs,rw,m_sent;
 reg start;
 reg temp;
-wire send,done,nextConfig,next;
+wire send,done,nextConfig,next,m_end;
 wire [7:0] command,SF_D,data;
 wire [3:0] SF_DInit,Data;
+reg [7:0] cursor;
 reg[25:0] min_counter;
-reg start_count;
+reg start_count,cursor_pointer;
 reg goto2;
 /*
 always@(reset)
@@ -31,16 +32,16 @@ message Mess(clk,reset,next,command,m_end);
    ////message 
    assign next= done&state[3];
    
-   
-////////////////////////////////////////////////////////////////////////////////////
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////
 LCD_controler  Control(data,send,rs,rw,clk,reset,control_E,RSn,RWn,Data,done);
-   ///LCD controler in
-   assign send = sendConfig&state[1]|state[2]|state[3]&temp;
-   assign data = SF_D&{8{state[1]}}|set_addr&{8{state[2]}}|command&{8{state[3]}};
-   //////////// out
+   //////////// in:
+   assign send = sendConfig&state[1]|state[2]|state[3]&temp|(state[4]&(~start_count)&(~done));
+   assign data = SF_D&{8{state[1]}}|set_addr&{8{state[2]}}|command&{8{state[3]}}|cursor&{8{state[4]}};
+   //////////// out:
    assign RS = RSn;
    assign RW = RWn;
-////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////////////////
 
    parameter state1 = 5'b00001; //init 
    parameter state2 = 5'b00010; //config  
@@ -56,9 +57,6 @@ LCD_controler  Control(data,send,rs,rw,clk,reset,control_E,RSn,RWn,Data,done);
       /// mux that chooses the final output 
    assign Data_En = LCD_EInit&state[0]|control_E&~state[0];
    assign instruction = SF_DInit&{4{state[0]}}|Data&~{4{state[0]}};
-
-   
-
    
    always@(posedge clk)
 	if (reset)
@@ -78,6 +76,7 @@ LCD_controler  Control(data,send,rs,rw,clk,reset,control_E,RSn,RWn,Data,done);
 		 rs <= 0;
 		 rw <= 0;
 		 start<=0;
+		 cursor_pointer<=0;
       end
       else
         case (state)
@@ -115,22 +114,42 @@ LCD_controler  Control(data,send,rs,rw,clk,reset,control_E,RSn,RWn,Data,done);
 				end
 				min_counter <=0;
             end
-            state4  : begin//message
-				if (m_end) begin
+            state4  : begin
+               if (m_end==1) begin
                   state <= state5 ;
 				  m_sent<=0;
 				  temp<=m_sent;
+				  start_count<=0;
+				  cursor<=cursor_pointer?8'b01011111:8'b00100000;		
 				  rs<=1;
 				  rw<=0;
 				end else if (next) begin
-				  state <= state4 ;
+				  state <= state4;
+				  temp<=m_sent;
+				  start_count<=0;
 				  m_sent<=1;
-				  temp<=m_sent;				  
 				  rs<=1;
 				  rw<=0;
-                end
+                end else begin
+                  state <= state4;
+				  m_sent<=0;		
+				  temp<=m_sent;
+				  start_count<=0;
+				  rs<=1;
+				  rw<=0;
+				end
             end
 			state5  : begin //
+				if(start_count) begin
+					if (goto2) begin
+						state<=state3;
+						cursor_pointer<=cursor_pointer+1;
+
+					end
+				end else if (done)
+					start_count<=1;
+				else 
+				cursor<=cursor_pointer?8'b01011111:8'b00100000;				
 				end
          endcase
 
